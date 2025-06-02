@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Neurological Syndromes Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .active-syndrome { background-color: #0ea5e9; color: white; } /* sky-500 */
+        .syndrome-list-item:hover { background-color: #1f2937; } /* gray-800 for hover on neutral-900 */
+        .active-syndrome:hover { background-color: #0ea5e9; } 
+        .diagram-highlight { background-color: #f43f5e !important; transition: background-color 0.3s ease-in-out; } /* rose-500 */
+        .tract { transition: background-color 0.3s ease-in-out; }
+        .category-header {
+            font-weight: 600; 
+            color: #9ca3af; /* gray-400 */
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.8rem; 
+        }
+        .search-input::placeholder { color: #9ca3af; } /* gray-400 */
+        .search-input { background-color: #1f2937; border-color: #374151; color: #e5e7eb; } /* gray-800, gray-700, gray-200 */
+        .search-input:focus { background-color: #111827; border-color: #0ea5e9; ring-color: #0ea5e9;} /* gray-900, sky-500 */
+
+        .select-dropdown {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); /* gray-400 for arrow */
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-color: #1f2937; /* gray-800 */
+            border-color: #374151; /* gray-700 */
+            color: #e5e7eb; /* gray-200 */
+        }
+        .select-dropdown:focus {
+             border-color: #0ea5e9; 
+             outline-color: #0ea5e9; 
+        }
+        .quiz-option {
+            background-color: #1f2937; /* gray-800 */
+            border: 1px solid #374151; /* gray-700 */
+            color: #d1d5db; /* gray-300 */
+        }
+        .quiz-option:hover {
+            background-color: #374151; /* gray-700 */
+        }
+        .quiz-option.selected {
+            background-color: #0ea5e9; /* sky-500 */
+            border-color: #0284c7; /* sky-600 */
+            color: white;
+        }
+        .quiz-option.correct {
+            background-color: #16a34a !important; /* green-600 */
+            border-color: #15803d !important; /* green-700 */
+            color: white !important;
+        }
+        .quiz-option.incorrect.selected { /* Only the selected incorrect option */
+            background-color: #dc2626 !important; /* red-600 */
+            border-color: #b91c1c !important; /* red-700 */
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="bg-black text-gray-200">
+
+    <div id="app" class="flex flex-col h-screen">
+        <header class="bg-neutral-900 border-b border-neutral-800 shadow-md p-4 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-sky-400 text-center flex-grow">Neurological Syndromes Explorer</h1>
+            <button id="toggle-view-btn" class="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 text-sm font-medium transition-colors">Quiz Mode</button>
+        </header>
+
+        <div id="explorer-view" class="flex flex-1 overflow-hidden">
+            <nav class="w-full md:w-1/3 lg:w-1/4 bg-neutral-900 border-r border-neutral-800 flex flex-col overflow-y-auto">
+                <div class="p-4 border-b border-neutral-800">
+                    <input type="text" id="search-input" placeholder="Search syndromes..." class="search-input w-full px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2 text-sm">
+                </div>
+                <div id="syndrome-list" class="flex-1 p-2 space-y-1">
+                </div>
+            </nav>
+
+            <main id="main-content" class="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto bg-black">
+                <div id="welcome-message" class="text-center h-full flex flex-col justify-center items-center">
+                    <div class="max-w-lg bg-neutral-900 p-10 rounded-xl shadow-xl border border-neutral-800">
+                        <span class="text-7xl">🧠</span>
+                        <h2 class="text-3xl font-bold text-sky-400 mt-6">Welcome to the Explorer</h2>
+                        <p class="text-gray-300 mt-3 text-base">Please select a neurological syndrome from the list on the left to view its details. You can also use the 'Compare with' feature for a side-by-side analysis of two syndromes.</p>
+                    </div>
+                </div>
+                <div id="syndrome-details" class="hidden">
+                </div>
+            </main>
+        </div>
+
+        <div id="quiz-view" class="hidden flex-1 flex-col items-center justify-center p-4 md:p-6 lg:p-8 overflow-y-auto bg-black">
+            <div id="quiz-container" class="w-full max-w-2xl bg-neutral-900 p-6 md:p-8 rounded-xl shadow-2xl border border-neutral-800">
+                <div id="quiz-start-screen">
+                    <h2 class="text-3xl font-bold text-sky-400 mb-6 text-center">Syndrome Knowledge Quiz</h2>
+                    <p class="text-gray-300 mb-2 text-center">Test your understanding with clinical scenarios.</p>
+                    <p id="quiz-question-count-info" class="text-gray-400 text-sm mb-8 text-center"></p>
+                    <button id="start-quiz-btn" class="w-full px-6 py-3 bg-sky-500 text-white rounded-lg hover:bg-sky-600 text-lg font-semibold transition-colors">Start Quiz</button>
+                </div>
+
+                <div id="quiz-question-screen" class="hidden">
+                    <div id="digital-score-container" class="flex justify-around items-center text-center mb-6 p-4 bg-neutral-800 rounded-lg">
+                        <div>
+                            <p class="text-xs sm:text-sm text-green-400 font-semibold uppercase tracking-wider">CORRECT</p>
+                            <p id="correct-score-display" class="text-2xl sm:text-3xl font-bold text-green-400">0</p>
+                        </div>
+                        <div>
+                            <p class="text-xs sm:text-sm text-red-400 font-semibold uppercase tracking-wider">INCORRECT</p>
+                            <p id="incorrect-score-display" class="text-2xl sm:text-3xl font-bold text-red-400">0</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                         <h2 class="text-xl font-bold text-sky-400">Question <span id="question-number"></span>/<span id="total-questions"></span></h2>
+                         <p class="text-md text-gray-300">Overall Score: <span id="current-score">0</span></p>
+                    </div>
+                    <p id="question-text" class="text-md text-gray-200 mb-6 min-h-[80px] leading-relaxed"></p>
+                    <div id="options-container" class="space-y-3 mb-6">
+                    </div>
+                    <div id="feedback-message" class="min-h-[24px] text-sm mb-4 text-center font-medium"></div>
+                    <button id="submit-answer-btn" class="w-full px-6 py-3 bg-sky-500 text-white rounded-lg hover:bg-sky-600 font-semibold transition-colors mb-2">Submit Answer</button>
+                    <button id="next-question-btn" class="w-full px-6 py-3 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 font-semibold transition-colors hidden">Next Question</button>
+                </div>
+
+                <div id="quiz-results-screen" class="hidden text-center">
+                    <h2 class="text-3xl font-bold text-sky-400 mb-6">Quiz Complete!</h2>
+                    <p class="text-xl text-gray-200 mb-2">Your Final Score:</p>
+                    <p id="final-score" class="text-5xl font-bold text-sky-500 mb-8"></p>
+                    <button id="restart-quiz-btn" class="w-full px-6 py-3 bg-sky-500 text-white rounded-lg hover:bg-sky-600 text-lg font-semibold transition-colors">Restart Quiz</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const syndromesData = [
+            {
+                id: 'anterior-cord',
+                name: 'Anterior Cord Syndrome',
+                category: 'Spinal Cord Syndromes',
+                pathology: 'Damage to anterior 2/3 of spinal cord (corticospinal + spinothalamic tracts), sparing dorsal columns. Common causes include spinal cord infarction (e.g., occlusion of the anterior spinal artery, often due to aortic surgery, dissection, or severe hypotension), trauma (e.g., burst fractures, acute disc herniation), and myelitis.',
+                features: 'Loss of motor function, pain, and temperature sensation below the level of the lesion. Proprioception, vibration, and light touch are preserved.',
+                example: 'A 30-year-old man falls from a motorbike, fractures a vertebra leading to anterior spinal artery infarct. Results in complete paralysis below T10 with loss of pain/temperature, but vibration and position sense are intact.',
+                diagram_parts: ['corticospinal', 'spinothalamic']
+            },
+            {
+                id: 'posterior-cord',
+                name: 'Posterior Cord Syndrome',
+                category: 'Spinal Cord Syndromes',
+                pathology: 'Damage to the dorsal columns (posterior part of the spinal cord). Often caused by vitamin B12 deficiency (subacute combined degeneration), tabes dorsalis (tertiary syphilis), multiple sclerosis, tumors compressing the posterior cord, vascular lesions, or Friedrich\'s ataxia.',
+                features: 'Loss of vibration sense, proprioception (position sense), and fine touch below the level of the lesion. Motor function, pain, and temperature sensation are preserved. Patients often have an ataxic gait (sensory ataxia) and a positive Romberg test.',
+                example: 'A 45-year-old woman with untreated pernicious anemia (vitamin B12 deficiency) develops an unsteady, wide-based gait and frequently stumbles, especially in the dark. She has a positive Romberg test, but her strength and pain perception are normal.',
+                diagram_parts: ['dorsal-columns']
+            },
+            {
+                id: 'central-cord',
+                name: 'Central Cord Syndrome',
+                category: 'Spinal Cord Syndromes',
+                pathology: 'Damage to the central part of the spinal cord, particularly affecting the cervical region. Typically results from hyperextension injuries in individuals with pre-existing cervical spondylosis or spinal stenosis. Other causes include syringomyelia, intramedullary tumors, and trauma.',
+                features: 'Motor weakness that is more pronounced in the upper limbs than in the lower limbs (arms and hands affected more than legs). Sensory loss is variable, often in a "cape-like" distribution (loss of pain and temperature over shoulders, upper arms, and back). Bladder dysfunction may occur.',
+                example: 'An elderly man with cervical spondylosis falls forward, striking his chin. He develops significant weakness in his arms and hands, with milder weakness in his legs. He also notes altered sensation over his shoulders and upper arms.',
+                diagram_parts: ['central']
+            },
+            {
+                id: 'brown-sequard',
+                name: 'Brown-Séquard Syndrome',
+                category: 'Spinal Cord Syndromes',
+                pathology: 'Hemisection (damage to one half) of the spinal cord. Most commonly due to penetrating trauma (e.g., stab or gunshot wounds). Other causes include tumors, disc herniation, epidural hematoma, ischemia, or demyelinating diseases like multiple sclerosis.',
+                features: 'Ipsilateral (same side as lesion): spastic paralysis (corticospinal tract damage) and loss of proprioception and vibration sense (dorsal column damage) below the level of the lesion. Contralateral (opposite side to lesion): loss of pain and temperature sensation (spinothalamic tract damage) typically beginning a few segments below the lesion.',
+                example: 'A 28-year-old man sustains a stab wound to the right side of his back at the T8 level. He presents with paralysis and loss of position sense in his right leg, and loss of pain and temperature sensation in his left leg below the T10 level.',
+                diagram_parts: ['hemisection-right']
+            },
+            {
+                id: 'cauda-equina',
+                name: 'Cauda Equina Syndrome',
+                category: 'Spinal Cord Syndromes',
+                pathology: 'Compression and dysfunction of the nerve roots of the cauda equina (lumbar, sacral, and coccygeal nerve roots below the conus medullaris). Commonly caused by a large lumbar disc herniation (especially at L4-L5 or L5-S1). Other causes include spinal stenosis, tumors (e.g., metastatic disease, ependymoma), trauma (fractures, penetrating injuries), epidural abscess, or epidural hematoma.',
+                features: 'Low back pain, unilateral or bilateral sciatica, saddle anesthesia (loss of sensation in the perineum, buttocks, and inner thighs), asymmetric leg weakness or paralysis (LMN signs), bladder and/or bowel dysfunction (retention or incontinence), and loss of reflexes (e.g., knee or ankle jerk). This is a surgical emergency.',
+                example: 'A 50-year-old man with a history of back problems develops acute severe low back pain radiating to both legs, numbness in his perineal region, difficulty urinating, and new-onset foot drop.',
+                diagram_parts: []
+            },
+            {
+                id: 'conus-medullaris',
+                name: 'Conus Medullaris Syndrome',
+                category: 'Spinal Cord Syndromes',
+                pathology: 'Injury to the conus medullaris (the tapered terminal end of the spinal cord, typically at the L1-L2 vertebral level). Often caused by tumors (e.g., ependymomas, metastases), trauma to the thoracolumbar spine, large disc herniations at L1/L2, vascular lesions, or spinal stenosis.',
+                features: 'Often presents with a combination of upper motor neuron (UMN) and lower motor neuron (LMN) signs. Characterized by sudden and bilateral perineal numbness (saddle anesthesia), early and prominent bladder and bowel dysfunction (retention or incontinence), symmetric leg weakness (often less severe than cauda equina), and hyperreflexia or Babinski signs (UMN) mixed with potential areflexia (LMN).',
+                example: 'A woman with a known spinal tumor at the L1 vertebral level presents with sudden onset of urinary retention, bilateral leg weakness (though still able to ambulate with difficulty), and numbness in the perianal region. Ankle reflexes may be brisk.',
+                diagram_parts: []
+            },
+            {
+                id: 'complete-transection',
+                name: 'Complete Cord Transection',
+                category: 'Spinal Cord Syndromes',
+                pathology: 'Complete severance or functional disruption of all ascending and descending tracts of the spinal cord at a specific level. Usually results from severe trauma (e.g., vertebral fractures with displacement, dislocations, severe penetrating injuries). Less common causes include rapidly progressing tumors, severe transverse myelitis, or vascular catastrophes like spinal cord infarction.',
+                features: 'Total loss of motor function (paraplegia or quadriplegia) and all sensory modalities (pain, temperature, touch, vibration, proprioception) below the level of the lesion. Initially, there is a period of spinal shock characterized by flaccid paralysis, areflexia, and autonomic dysfunction. Later, UMN signs such as spasticity and hyperreflexia develop below the lesion.',
+                example: 'A victim of a high-speed motor vehicle accident sustains a T6 vertebral fracture-dislocation. They have immediate complete paralysis of both legs and loss of all sensation below the mid-chest. Initially, reflexes are absent, but weeks later, spasticity and hyperreflexia develop in the legs.',
+                diagram_parts: ['corticospinal', 'spinothalamic', 'dorsal-columns', 'central']
+            },
+            {
+                id: 'transverse-myelitis',
+                name: 'Transverse Myelitis (TM)',
+                category: 'Other Neurological Conditions',
+                cause: 'Inflammation across one or more segments of the spinal cord. Can be idiopathic (unknown cause) or associated with autoimmune disorders (e.g., multiple sclerosis, neuromyelitis optica, lupus), post-infectious processes (viral, bacterial, or parasitic infections), or vaccinations (rare).',
+                features: 'Develops acutely or subacutely. Characterized by bilateral motor weakness (paraparesis or quadriparesis, often UMN signs), sensory disturbances (paresthesias, numbness) with a distinct sensory level, and bladder/bowel dysfunction. Back pain or radicular pain at the level of the lesion is common.',
+                example: 'A young adult develops rapidly progressive leg weakness, numbness extending up to the T6 dermatome, and urinary retention over a few days. An MRI of the spine shows a T2 hyperintense lesion with enhancement at the T6 spinal cord level.',
+                diagram_parts: ['corticospinal', 'spinothalamic', 'dorsal-columns', 'central']
+            },
+            {
+                id: 'guillain-barre',
+                name: 'Guillain-Barré Syndrome (GBS)',
+                category: 'Other Neurological Conditions',
+                cause: 'An acute autoimmune polyradiculoneuropathy primarily affecting peripheral nerves and nerve roots, leading to demyelination or axonal damage. Often preceded by an infection (e.g., Campylobacter jejuni gastroenteritis, cytomegalovirus, Epstein-Barr virus, Zika virus) or, rarely, vaccination or surgery.',
+                features: 'Rapidly progressive, relatively symmetric ascending weakness (often starting in the legs and moving upwards), areflexia or hyporeflexia, and mild to moderate sensory symptoms (paresthesias, pain, often in a "glove and stocking" distribution). Can involve respiratory muscles (requiring mechanical ventilation) and autonomic dysfunction (tachycardia, bradycardia, labile blood pressure).',
+                example: 'Two weeks after a bout of diarrheal illness, a 35-year-old develops tingling in their feet, followed by progressive weakness in their legs making it difficult to walk. The weakness ascends to involve the arms, and they are noted to have absent deep tendon reflexes. Nerve conduction studies show features of demyelination.',
+                diagram_parts: []
+            },
+            {
+                id: 'multiple-sclerosis',
+                name: 'Multiple Sclerosis (MS)',
+                category: 'Other Neurological Conditions',
+                cause: 'A chronic, immune-mediated inflammatory disease affecting the central nervous system (brain, spinal cord, and optic nerves), leading to demyelination and axonal damage. The exact cause is unknown but involves a combination of genetic predisposition and environmental factors (e.g., viral infections like EBV, low vitamin D levels, smoking).',
+                features: 'Symptoms are disseminated in time and space, often relapsing and remitting. Common manifestations include optic neuritis (painful vision loss), limb weakness or paralysis (UMN signs), sensory disturbances (numbness, tingling, Lhermitte\'s sign), ataxia, bladder/bowel dysfunction, fatigue, and cognitive changes. MRI shows characteristic demyelinating plaques in the CNS.',
+                example: 'A 30-year-old woman presents with a history of transient left-sided weakness a year ago, and now develops acute painful blurring of vision in her right eye. MRI of the brain and spine reveals multiple T2 hyperintense lesions consistent with demyelination.',
+                diagram_parts: []
+            },
+            {
+                id: 'acute-compression',
+                name: 'Acute Spinal Cord Compression',
+                category: 'Other Neurological Conditions',
+                cause: 'Rapid mechanical compression of the spinal cord. Common causes include metastatic epidural spinal cord compression (MESCC) from cancer (e.g., lung, breast, prostate), trauma (vertebral fractures, hematoma), large acute disc herniation, epidural abscess, or rapidly expanding benign tumors.',
+                features: 'Presents with back pain (often preceding neurological symptoms and worsening with lying down or coughing), progressive motor weakness below the level of compression (UMN signs), sensory loss with a discernible sensory level, and bladder/bowel dysfunction (often urinary retention). This is a neurological emergency requiring urgent investigation (MRI) and treatment to prevent permanent neurological damage.',
+                example: 'A patient with known metastatic breast cancer develops new, severe mid-thoracic back pain followed by progressive difficulty walking and numbness in both legs over 48 hours. They also report new-onset urinary retention. 🔥 Red Flag: Back pain + weakness + bladder symptoms → emergency MRI.',
+                diagram_parts: ['corticospinal', 'spinothalamic', 'dorsal-columns', 'central']
+            }
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const syndromeListEl = document.getElementById('syndrome-list');
+            const searchInputEl = document.getElementById('search-input');
+            const syndromeDetailsEl = document.getElementById('syndrome-details');
+            const welcomeMessageEl = document.getElementById('welcome-message');
+            const toggleViewBtn = document.getElementById('toggle-view-btn');
+            const explorerView = document.getElementById('explorer-view');
+            const quizView = document.getElementById('quiz-view');
+
+            const quizStartScreen = document.getElementById('quiz-start-screen');
+            const quizQuestionCountInfoEl = document.getElementById('quiz-question-count-info');
+            const startQuizBtn = document.getElementById('start-quiz-btn');
+            const quizQuestionScreen = document.getElementById('quiz-question-screen');
+            const questionNumberEl = document.getElementById('question-number');
+            const totalQuestionsEl = document.getElementById('total-questions');
+            const currentScoreEl = document.getElementById('current-score'); // Overall score
+            const correctScoreDisplayEl = document.getElementById('correct-score-display');
+            const incorrectScoreDisplayEl = document.getElementById('incorrect-score-display');
+            const questionTextEl = document.getElementById('question-text');
+            const optionsContainerEl = document.getElementById('options-container');
+            const feedbackMessageEl = document.getElementById('feedback-message');
+            const submitAnswerBtn = document.getElementById('submit-answer-btn');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            const quizResultsScreen = document.getElementById('quiz-results-screen');
+            const finalScoreEl = document.getElementById('final-score');
+            const restartQuizBtn = document.getElementById('restart-quiz-btn');
+            
+            let currentSyndromeId = null;
+            let isQuizMode = false;
+
+            let quizQuestions = [];
+            let currentQuestionIndex = 0;
+            let correctCount = 0;
+            let incorrectCount = 0;
+            let selectedAnswerIndex = null;
+            let answerSubmitted = false;
+            
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function generateQuizQuestions() {
+                const questions = [];
+                const allSyndromeNames = syndromesData.map(s => s.name);
+
+                syndromesData.forEach(syndrome => {
+                    if (syndrome.example) { 
+                        let scenario = syndrome.example;
+                        const questionText = `A patient presents with the following: "${scenario}". Which syndrome is most likely?`;
+                        
+                        let options = [syndrome.name];
+                        while (options.length < 4) {
+                            const randomSyndromeName = allSyndromeNames[Math.floor(Math.random() * allSyndromeNames.length)];
+                            if (!options.includes(randomSyndromeName)) {
+                                options.push(randomSyndromeName);
+                            }
+                        }
+                        questions.push({
+                            text: questionText,
+                            options: shuffleArray(options),
+                            correctAnswer: syndrome.name
+                        });
+                    }
+                });
+                return shuffleArray(questions); 
+            }
+            
+            function setupQuizInfo() {
+                const tempQuizQuestions = generateQuizQuestions();
+                quizQuestionCountInfoEl.textContent = `The quiz will have ${tempQuizQuestions.length} clinical scenario questions.`;
+            }
+            setupQuizInfo();
+
+            function updateDigitalScoreDisplay() {
+                correctScoreDisplayEl.textContent = correctCount;
+                incorrectScoreDisplayEl.textContent = incorrectCount;
+            }
+
+            function startQuiz() {
+                quizQuestions = generateQuizQuestions();
+                if (quizQuestions.length === 0) {
+                    feedbackMessageEl.textContent = "Not enough data to generate scenario questions!";
+                    feedbackMessageEl.classList.add('text-yellow-400');
+                    return;
+                }
+                currentQuestionIndex = 0;
+                correctCount = 0;
+                incorrectCount = 0;
+                selectedAnswerIndex = null;
+                answerSubmitted = false;
+
+                quizStartScreen.classList.add('hidden');
+                quizResultsScreen.classList.add('hidden');
+                quizQuestionScreen.classList.remove('hidden');
+                
+                totalQuestionsEl.textContent = quizQuestions.length;
+                updateDigitalScoreDisplay();
+                displayQuestion();
+            }
+
+            function displayQuestion() {
+                const question = quizQuestions[currentQuestionIndex];
+                questionNumberEl.textContent = currentQuestionIndex + 1;
+                currentScoreEl.textContent = correctCount; // Display overall correct score
+                questionTextEl.textContent = question.text;
+                optionsContainerEl.innerHTML = '';
+                feedbackMessageEl.textContent = '';
+                feedbackMessageEl.className = 'min-h-[24px] text-sm mb-4 text-center font-medium';
+
+
+                question.options.forEach((option, index) => {
+                    const optionButton = document.createElement('button');
+                    optionButton.textContent = option;
+                    optionButton.classList.add('quiz-option', 'w-full', 'text-left', 'p-3', 'rounded-md', 'transition-colors', 'text-sm');
+                    optionButton.addEventListener('click', () => {
+                        if (!answerSubmitted) {
+                            selectedAnswerIndex = index;
+                            document.querySelectorAll('.quiz-option').forEach(btn => btn.classList.remove('selected'));
+                            optionButton.classList.add('selected');
+                        }
+                    });
+                    optionsContainerEl.appendChild(optionButton);
+                });
+                submitAnswerBtn.classList.remove('hidden');
+                submitAnswerBtn.disabled = false;
+                nextQuestionBtn.classList.add('hidden');
+                answerSubmitted = false;
+            }
+            
+            function handleSubmitAnswer() {
+                if (selectedAnswerIndex === null && !answerSubmitted) {
+                    feedbackMessageEl.textContent = "Please select an answer.";
+                    feedbackMessageEl.classList.add('text-yellow-400');
+                    return;
+                }
+                if (answerSubmitted) return; 
+
+                answerSubmitted = true;
+                submitAnswerBtn.disabled = true;
+
+                const question = quizQuestions[currentQuestionIndex];
+                const selectedOptionText = question.options[selectedAnswerIndex];
+                const optionButtons = optionsContainerEl.querySelectorAll('.quiz-option');
+
+                optionButtons.forEach((btn, index) => {
+                    btn.disabled = true; 
+                    if (index === selectedAnswerIndex) {
+                        if (selectedOptionText === question.correctAnswer) {
+                            btn.classList.add('correct');
+                        } else {
+                            btn.classList.add('incorrect', 'selected'); 
+                        }
+                    }
+                    if (btn.textContent === question.correctAnswer && selectedOptionText !== question.correctAnswer) {
+                         btn.classList.add('correct'); 
+                    }
+                });
+
+
+                if (selectedOptionText === question.correctAnswer) {
+                    correctCount++;
+                    feedbackMessageEl.textContent = "Correct!";
+                    feedbackMessageEl.classList.remove('text-yellow-400', 'text-red-400');
+                    feedbackMessageEl.classList.add('text-green-400');
+                } else {
+                    incorrectCount++;
+                    feedbackMessageEl.textContent = `Incorrect. The correct answer was: ${question.correctAnswer}`;
+                    feedbackMessageEl.classList.remove('text-yellow-400', 'text-green-400');
+                    feedbackMessageEl.classList.add('text-red-400');
+                }
+                updateDigitalScoreDisplay();
+                currentScoreEl.textContent = correctCount; // Update overall score display
+                submitAnswerBtn.classList.add('hidden');
+                nextQuestionBtn.classList.remove('hidden');
+            }
+
+            function handleNextQuestion() {
+                currentQuestionIndex++;
+                selectedAnswerIndex = null;
+                if (currentQuestionIndex < quizQuestions.length) {
+                    displayQuestion();
+                } else {
+                    showResults();
+                }
+            }
+
+            function showResults() {
+                quizQuestionScreen.classList.add('hidden');
+                quizResultsScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${correctCount} / ${quizQuestions.length}`;
+            }
+
+
+            function renderSyndromeList(filter = '') {
+                const groupedSyndromes = syndromesData.reduce((acc, syndrome) => {
+                    if (syndrome.name.toLowerCase().includes(filter.toLowerCase())) {
+                        if (!acc[syndrome.category]) {
+                            acc[syndrome.category] = [];
+                        }
+                        acc[syndrome.category].push(syndrome);
+                    }
+                    return acc;
+                }, {});
+
+                syndromeListEl.innerHTML = Object.entries(groupedSyndromes).map(([category, syndromes]) => `
+                    <h3 class="category-header px-3 pt-4 pb-2">${category}</h3>
+                    ${syndromes.map(syndrome => `
+                        <a href="#" class="syndrome-list-item block px-3 py-2.5 text-gray-300 rounded-md text-sm font-medium ${syndrome.id === currentSyndromeId ? 'active-syndrome' : ''}" data-id="${syndrome.id}">
+                            ${syndrome.name}
+                        </a>
+                    `).join('')}
+                `).join('');
+            }
+
+            function getSpinalCordDiagramHTML(syndrome = null) {
+                const parts = syndrome ? syndrome.diagram_parts : [];
+                const isHemisection = parts.includes('hemisection-right');
+                return `
+                    <div class="bg-neutral-900 p-5 rounded-xl shadow-xl border border-neutral-800 mb-6">
+                        <h3 class="text-xl font-semibold mb-1 text-sky-400">Spinal Cord Cross-Section</h3>
+                        <p class="text-xs text-gray-400 mb-4">Illustrates approximate lesion location. Affected areas highlighted in red. Not all conditions map directly.</p>
+                        <div class="mx-auto w-48 h-48 bg-neutral-700 rounded-full flex items-center justify-center relative overflow-hidden border-2 border-neutral-600">
+                            <div class="absolute w-full h-full">
+                                <div id="dorsal-columns" class="tract absolute top-2 left-1/2 -translate-x-1/2 w-16 h-8 bg-neutral-600 rounded-t-full ${parts.includes('dorsal-columns') ? 'diagram-highlight' : ''}"></div>
+                                <div id="corticospinal-left" class="tract absolute top-1/2 left-2 -translate-y-1/2 w-8 h-16 bg-neutral-600 rounded-l-full ${parts.includes('corticospinal') || (isHemisection && parts.includes('corticospinal')) ? 'diagram-highlight' : ''}"></div>
+                                <div id="corticospinal-right" class="tract absolute top-1/2 right-2 -translate-y-1/2 w-8 h-16 bg-neutral-600 rounded-r-full ${parts.includes('corticospinal') && !isHemisection ? 'diagram-highlight' : ''}"></div>
+                                <div id="spinothalamic" class="tract absolute bottom-2 left-1/2 -translate-x-1/2 w-24 h-12 bg-neutral-600 rounded-b-full ${parts.includes('spinothalamic') ? 'diagram-highlight' : ''}"></div>
+                                <div id="central" class="tract absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-neutral-500 rounded-full ${parts.includes('central') ? 'diagram-highlight' : ''}"></div>
+                                ${isHemisection ? `<div class="absolute top-0 right-0 w-1/2 h-full bg-rose-500/20 pointer-events-none"></div><div class="absolute top-1/2 left-2 -translate-y-1/2 w-8 h-16 bg-rose-500 diagram-highlight rounded-l-full"></div> <div class="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-8 bg-rose-500 diagram-highlight rounded-t-full" style="clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);"></div>` : ''}
+                            </div>
+                            <div class="absolute top-0 left-1/2 -translate-x-1/2 mt-1 text-xs text-gray-400 font-semibold">Posterior</div>
+                            <div class="absolute bottom-0 left-1/2 -translate-x-1/2 mb-1 text-xs text-gray-400 font-semibold">Anterior</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function getSyndromeCardHTML(syndrome) {
+                const pathologyKey = syndrome.category === 'Spinal Cord Syndromes' ? 'Pathology & Causes' : 'Cause';
+                return `
+                    <div class="bg-neutral-900 p-6 rounded-xl shadow-xl border border-neutral-800 flex-1">
+                        <h3 class="text-2xl font-bold text-sky-400 mb-5">${syndrome.name}</h3>
+                        <div class="space-y-5 text-sm">
+                            <div>
+                                <h4 class="text-base font-semibold text-gray-300 mb-1">🧬 ${pathologyKey}</h4>
+                                <p class="text-gray-400 leading-relaxed pl-1">${syndrome.pathology || syndrome.cause}</p>
+                            </div>
+                            <div>
+                                <h4 class="text-base font-semibold text-gray-300 mb-1">🩺 Features</h4>
+                                <p class="text-gray-400 leading-relaxed pl-1">${syndrome.features}</p>
+                            </div>
+                            <div>
+                                <h4 class="text-base font-semibold text-gray-300 mb-1">📍 Example</h4>
+                                <p class="text-gray-400 leading-relaxed pl-1">${syndrome.example}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function renderSyndromeDetails(syndromeId, compareSyndromeId = null) {
+                const syndrome1 = syndromesData.find(s => s.id === syndromeId);
+                if (!syndrome1) return;
+
+                currentSyndromeId = syndromeId;
+                welcomeMessageEl.classList.add('hidden');
+                syndromeDetailsEl.classList.remove('hidden');
+
+                if (compareSyndromeId) {
+                    const syndrome2 = syndromesData.find(s => s.id === compareSyndromeId);
+                    syndromeDetailsEl.innerHTML = `
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3 sm:gap-0">
+                            <h2 class="text-2xl md:text-3xl font-extrabold text-sky-400">${syndrome1.name} <span class="font-normal text-gray-500">vs.</span> ${syndrome2.name}</h2>
+                            <button id="clear-comparison-btn" class="px-5 py-2.5 bg-sky-500 text-white rounded-lg hover:bg-sky-600 text-sm font-medium shadow-sm hover:shadow-md transition-all">Clear Comparison</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            ${getSyndromeCardHTML(syndrome1)}
+                            ${getSyndromeCardHTML(syndrome2)}
+                        </div>
+                    `;
+                } else {
+                    const otherSyndromes = syndromesData.filter(s => s.id !== syndromeId);
+                    syndromeDetailsEl.innerHTML = `
+                        <div class="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
+                            <h2 class="text-3xl md:text-4xl font-extrabold text-sky-400">${syndrome1.name}</h2>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <label for="compare-select" class="text-sm font-medium text-gray-400">Compare with:</label>
+                                <select id="compare-select" class="select-dropdown rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2">
+                                    <option value="">Select a syndrome...</option>
+                                    ${otherSyndromes.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-1 xl:grid-cols-5 gap-6">
+                            <div class="xl:col-span-2">
+                                ${getSpinalCordDiagramHTML(syndrome1)}
+                            </div>
+                            <div class="xl:col-span-3">
+                                ${getSyndromeCardHTML(syndrome1)}
+                            </div>
+                        </div>
+                    `;
+                }
+                attachDetailViewListeners();
+                renderSyndromeList(searchInputEl.value);
+            }
+
+            function attachDetailViewListeners() {
+                const compareSelect = document.getElementById('compare-select');
+                if (compareSelect) {
+                    compareSelect.addEventListener('change', (e) => {
+                        if (e.target.value) {
+                            renderSyndromeDetails(currentSyndromeId, e.target.value);
+                        }
+                    });
+                }
+                const clearComparisonBtn = document.getElementById('clear-comparison-btn');
+                if (clearComparisonBtn) {
+                    clearComparisonBtn.addEventListener('click', () => {
+                        renderSyndromeDetails(currentSyndromeId);
+                    });
+                }
+            }
+            
+            searchInputEl.addEventListener('keyup', (e) => {
+                renderSyndromeList(e.target.value);
+            });
+
+            syndromeListEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                const target = e.target.closest('.syndrome-list-item');
+                if (target) {
+                    const syndromeId = target.dataset.id;
+                    if (syndromeId !== currentSyndromeId) {
+                         renderSyndromeDetails(syndromeId);
+                    }
+                }
+            });
+            
+            toggleViewBtn.addEventListener('click', () => {
+                isQuizMode = !isQuizMode;
+                if (isQuizMode) {
+                    explorerView.classList.add('hidden');
+                    quizView.classList.remove('hidden');
+                    quizQuestionScreen.classList.add('hidden');
+                    quizResultsScreen.classList.add('hidden');
+                    quizStartScreen.classList.remove('hidden');
+                    setupQuizInfo(); 
+                    toggleViewBtn.textContent = 'Back to Explorer';
+                } else {
+                    explorerView.classList.remove('hidden');
+                    quizView.classList.add('hidden');
+                    toggleViewBtn.textContent = 'Quiz Mode';
+                }
+            });
+
+            startQuizBtn.addEventListener('click', startQuiz);
+            submitAnswerBtn.addEventListener('click', handleSubmitAnswer);
+            nextQuestionBtn.addEventListener('click', handleNextQuestion);
+            restartQuizBtn.addEventListener('click', startQuiz);
+
+            renderSyndromeList();
+        });
+    </script>
+</body>
+</html>
